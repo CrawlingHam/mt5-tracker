@@ -1,6 +1,6 @@
 {
     "scripts": {
-        "start": ".\\.venv\\Scripts\\python -m waitress --listen=127.0.0.1:8004 src.main:app",
+        "start": ".\\.venv\\Scripts\\python -m src.main",
         "dev": ".\\.venv\\Scripts\\python -m src.main"
     }
 }
