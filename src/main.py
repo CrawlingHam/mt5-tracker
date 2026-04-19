@@ -6,7 +6,7 @@ from waitress import serve
 from flask import Flask
 
 app = Flask(__name__)
-CORS(app, origins=list(allowed_origins))
+CORS(app, origins=list(allowed_origins), supports_credentials=True)
 setup_request_logger(app)
 register_routes(app)
 

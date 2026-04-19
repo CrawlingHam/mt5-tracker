@@ -1,6 +1,7 @@
 from src.types.responses import MT5Account, MT5AllResponse, MT5Health, MT5Position, MT5Terminal, MT5Trade
 from flask import Blueprint, Response, jsonify, request
 from src.utils import to_dataclass, resolve_date_range
+from src.dto import aggregate_trades_by_position
 from src.types import HTTPStatusCode
 from src.routes import init_mt5
 import MetaTrader5 as mt5
@@ -13,6 +14,8 @@ def all_data() -> Response:
 
     from_date_raw = request.args.get("from_date")
     to_date_raw = request.args.get("to_date")
+    dto_raw = request.args.get("dto")
+    use_dto = dto_raw is not None and dto_raw.lower() in ("1", "true", "yes", "on")
 
     try:
         from_date, to_date = resolve_date_range(from_date_raw, to_date_raw)
@@ -34,12 +37,13 @@ def all_data() -> Response:
     account_response = to_dataclass(MT5Account, account_info._asdict()) if account_info else None
     terminal_response = to_dataclass(MT5Terminal, terminal._asdict()) if terminal else None
     trade_responses = [to_dataclass(MT5Trade, deal._asdict()) for deal in deals]
+    trades_payload = aggregate_trades_by_position(trade_responses) if use_dto else trade_responses
     health_response = MT5Health(connected=True, terminal=terminal_response)
 
     all_response = MT5AllResponse(
         positions=position_responses,
         account=account_response,
-        trades=trade_responses,
+        trades=trades_payload,
         health=health_response,
     )
 

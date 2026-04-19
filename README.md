@@ -40,6 +40,7 @@ If MT5 cannot initialize, routes that call `init_mt5()` will fail.
   - `health.py`
   - `all.py`
 - `src/types/responses/` - response dataclasses
+- `src/dto/` - aggregation helpers (e.g. grouping deal rows for `/trades?dto=...`)
 - `src/utils/` - shared utilities (date parsing, DTO mapping, strings, env loader)
 - `src/configs/` - environment-driven app configuration
 
@@ -156,11 +157,12 @@ curl "http://127.0.0.1:8004/positions"
 
 ### `GET /trades`
 
-Returns trade history in a date range.
+Returns trade history in a date range. Data comes from MT5 **deal** history (`history_deals_get`), mapped to `MT5Trade` rows.
 
 - Query params:
   - `from_date` (optional)
   - `to_date` (optional)
+  - `dto` (optional) — when set to a truthy value, the response is **aggregated by `position_id`** (see below).
 - Body: none
 
 Accepted date formats:
@@ -180,6 +182,21 @@ Date handling behavior:
 - If `from_date > to_date`:
   - returns `400 BAD_REQUEST`
 
+**Response shape (`dto`)**
+
+- If `dto` is omitted or not truthy: JSON array of `MT5Trade` objects (one object per deal).
+- If `dto` is truthy: JSON array of `MT5PositionTrade` objects (grouped by `position_id`). Truth values are case-insensitive: `1`, `true`, `yes`, `on`.
+
+`MT5PositionTrade` fields:
+
+- `position_id`, `symbol` — identity for the group.
+- `opens` — deals with entry type IN (opening legs).
+- `closes` — deals with entry type OUT (closing legs).
+- `other_deals` — deals on that position with other entry types (e.g. netting / special cases).
+- `standalone` — set when `position_id` is `0` (e.g. balance or non-position operations); the single deal is here and the lists are empty.
+
+Rows with `position_id == 0` are **not** merged; each becomes its own item with `standalone` populated.
+
 Examples:
 
 ```bash
@@ -187,6 +204,8 @@ curl "http://127.0.0.1:8004/trades"
 curl "http://127.0.0.1:8004/trades?from_date=2026-04-17"
 curl "http://127.0.0.1:8004/trades?from_date=2026-04-17&to_date=2026-04-17"
 curl "http://127.0.0.1:8004/trades?from_date=2026-04-17T00:00:00&to_date=2026-04-17T12:00:00"
+curl "http://127.0.0.1:8004/trades?dto=true"
+curl "http://127.0.0.1:8004/trades?from_date=2026-04-17&dto=1"
 ```
 
 ### `GET /all`
@@ -196,6 +215,7 @@ Aggregates `/account`, `/positions`, `/trades`, and `/health` style data into on
 - Query params:
   - `from_date` (optional)
   - `to_date` (optional)
+  - `dto` (optional) — same meaning as on `GET /trades`: when truthy, the `trades` field is a list of `MT5PositionTrade` (grouped by `position_id`); otherwise it is a flat list of `MT5Trade` (one row per deal).
 - Body: none
 
 Uses the same date parsing/range rules as `/trades`.
@@ -206,12 +226,15 @@ Examples:
 curl "http://127.0.0.1:8004/all"
 curl "http://127.0.0.1:8004/all?from_date=2026-04-17"
 curl "http://127.0.0.1:8004/all?from_date=2026-04-17&to_date=2026-04-17"
+curl "http://127.0.0.1:8004/all?dto=true"
+curl "http://127.0.0.1:8004/all?from_date=2026-04-17&dto=1"
 ```
 
 ## Response Shape Notes
 
 - Responses are backed by dataclasses in `src/types/responses/`.
-- `/all` uses an aggregate dataclass (`MT5AllResponse`).
+- `/trades` returns either a list of `MT5Trade` (default) or a list of `MT5PositionTrade` when `dto` is truthy; aggregation is implemented in `src/dto/trades.py`.
+- `/all` uses `MT5AllResponse`; its `trades` field follows the same `dto` rule as `GET /trades` (flat `MT5Trade` vs grouped `MT5PositionTrade`).
 - Error responses for invalid date input return JSON:
   - `{"error": "..."}` with `400`.
 

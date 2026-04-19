@@ -1,7 +1,7 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from .base import ResponseModel
 
-__all__ = ["MT5Trade"]
+__all__ = ["MT5Trade", "MT5PositionTrade"]
 
 @dataclass
 class MT5Trade(ResponseModel):
@@ -23,3 +23,12 @@ class MT5Trade(ResponseModel):
     ticket: int
     type: int
     time: int
+
+@dataclass
+class MT5PositionTrade(ResponseModel):
+    position_id: int
+    symbol: str
+    opens: list[MT5Trade] = field(default_factory=list)
+    closes: list[MT5Trade] = field(default_factory=list)
+    other_deals: list[MT5Trade] = field(default_factory=list)
+    standalone: MT5Trade | None = None
